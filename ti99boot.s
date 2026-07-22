@@ -114,14 +114,14 @@ stripe_colors:
 .exportzp __EXEHDR__: absolute = 1
 
 .segment "LOADADDR"
-        .word $0FFF
+        .word $1001
 
 .segment "EXEHDR"
-        ; BASIC stub: 10 SYS 4096
+        ; BASIC stub: 10 SYS 4109
         .word @next
         .word 10
         .byte $9e
-        .byte "4096"
+        .byte "4109"
         .byte 0
 @next:
         .word 0
