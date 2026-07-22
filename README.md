@@ -17,7 +17,7 @@ make run      # build + launch in VICE
 make clean    # remove build artifacts
 ```
 
-Requires: `ca65`, `ld65` (cc65 toolchain), VICE (`x64`)
+Requires: `ca65`, `ld65` (cc65 toolchain), VICE (`xvic`)
 
 ## Hardware
 

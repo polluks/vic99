@@ -18,6 +18,6 @@ clean:
 	rm -f $(OBJS) $(TARGET).prg
 
 run: $(TARGET).prg
-	x64 -VIC20 $(TARGET).prg
+	xvic $(TARGET).prg
 
 .PHONY: all clean run

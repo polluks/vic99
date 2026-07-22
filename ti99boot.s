@@ -33,6 +33,10 @@ VIA2_H2   = $9127     ; Timer 1 latch high
 VIA2_ACR  = $912B     ; Auxiliary Control Register
 VIA2_IER  = $912E     ; Interrupt Enable Register
 VIA2_IFR  = $912D     ; Interrupt Flag Register
+VIA2_PB   = $9120     ; Port B (keyboard columns)
+VIA2_PA   = $9121     ; Port A (keyboard rows)
+VIA2_DDRB = $9122     ; Data Direction Register B
+VIA2_DDRA = $9123     ; Data Direction Register A
 
 ; IRQ vector
 IRQV    = $0314
@@ -53,6 +57,7 @@ SC_E    = $05
 SC_G    = $07
 SC_H    = $08
 SC_I    = $09
+SC_K    = $0B
 SC_M    = $0D
 SC_N    = $0E
 SC_O    = $0F
@@ -194,13 +199,16 @@ start:
         ; Beep
         jsr beep
 
-        ; Wait ~3 seconds (150 frames)
-        ldx #150
-@wait1: lda #$fa
-@wait2: cmp RAST
-        bne @wait2
-        dex
-        bne @wait1
+        ; Wait for keypress
+        lda #$ff
+        sta VIA2_DDRB        ; columns = output
+        lda #$00
+        sta VIA2_DDRA        ; rows = input
+@wait:  lda #$00
+        sta VIA2_PB          ; select all columns
+        lda VIA2_PA          ; read rows
+        cmp #$ff             ; no key pressed?
+        beq @wait            ; keep waiting
 
         ; Disable raster effect
         sei
@@ -449,10 +457,24 @@ draw_screen1:
         lda #SC_DOT
         sta SCREEN+5*COLS,y
 
-        ; ">" prompt row 7
-        lda #SC_GT
-        sta SCREEN+7*COLS+0
+        ; "PRESS ANY KEY TO BEGIN" row 7
+        ldy #0
+        ldx #0
+@press: lda press_text,x
+        sta SCREEN+7*COLS,y
+        iny
+        inx
+        cpx #(press_end - press_text)
+        bne @press
         rts
+
+press_text:
+        .byte SC_P,SC_R,SC_E,SC_S,SC_S,SC_SP
+        .byte SC_A,SC_N,SC_Y,SC_SP
+        .byte SC_K,SC_E,SC_Y,SC_SP
+        .byte SC_T,SC_O,SC_SP
+        .byte SC_B,SC_E,SC_G,SC_I,SC_N
+press_end:
 
 ;----------------------------------------------
 ; Draw screen 2: BASIC ready prompt
