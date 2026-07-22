@@ -77,6 +77,7 @@ SC_DASH = $2D
 SC_DOT  = $2E
 SC_FSLH = $2F
 SC_GT   = $3E
+SC_RP   = $29
 
 ; VIC colors
 C_BLUE   = $06
@@ -230,6 +231,20 @@ start:
         ; Beep
         jsr beep
 
+        ; Brief delay
+        ldx #50
+@wait1: lda #$fa
+@wait2: cmp RAST
+        bne @wait2
+        dex
+        bne @wait1
+
+        ; Draw screen 3
+        jsr draw_screen3
+
+        ; Beep
+        jsr beep
+
 @halt:  jmp @halt
 
 ;----------------------------------------------
@@ -289,22 +304,21 @@ irq:
         jmp KERNAL_IRQ
 
 ;----------------------------------------------
-; Beep: toggle volume register
+; Beep: VIC chip tone via voice 1
 ;----------------------------------------------
 beep:
-        ldy #100
+        lda #$22          ; ~1kHz (PAL: 1108878/(32*35))
+        sta $900A         ; voice 1 frequency
+        lda #$0f          ; max volume
+        sta $900E
+        ldy #100          ; ~200ms delay
 @outer: ldx #0
-@inner: txa
-        and #$80
-        beq :+
-        lda #$0F
-        bne @set
-:       lda #$00
-@set:   sta VSCR
-        inx
+@inner: dex
         bne @inner
         dey
         bne @outer
+        lda #$00
+        sta $900A         ; silence
         rts
 
 ;----------------------------------------------
@@ -477,7 +491,7 @@ press_text:
 press_end:
 
 ;----------------------------------------------
-; Draw screen 2: BASIC ready prompt
+; Draw screen 2: ROM menu
 ;----------------------------------------------
 draw_screen2:
         ldx #$00
@@ -487,8 +501,8 @@ draw_screen2:
         inx
         bne @clr
 
-        ; "TI-99/4A BASIC" centered, row 0
-        ldy #5
+        ; "TI-99/4A" centered, col 7, row 0
+        ldy #7
         lda #SC_T
         sta SCREEN+0*COLS,y
         iny
@@ -512,27 +526,57 @@ draw_screen2:
         iny
         lda #SC_A
         sta SCREEN+0*COLS,y
+
+        ; "1) TI BASIC" row 2
+        ldy #0
+        lda #SC_1
+        sta SCREEN+2*COLS,y
+        iny
+        lda #SC_RP
+        sta SCREEN+2*COLS,y
         iny
         lda #SC_SP
-        sta SCREEN+0*COLS,y
+        sta SCREEN+2*COLS,y
+        iny
+        lda #SC_T
+        sta SCREEN+2*COLS,y
+        iny
+        lda #SC_I
+        sta SCREEN+2*COLS,y
+        iny
+        lda #SC_SP
+        sta SCREEN+2*COLS,y
         iny
         lda #SC_B
-        sta SCREEN+0*COLS,y
-        iny
-        lda #SC_I
-        sta SCREEN+0*COLS,y
+        sta SCREEN+2*COLS,y
         iny
         lda #SC_A
-        sta SCREEN+0*COLS,y
+        sta SCREEN+2*COLS,y
         iny
         lda #SC_S
-        sta SCREEN+0*COLS,y
+        sta SCREEN+2*COLS,y
         iny
         lda #SC_I
-        sta SCREEN+0*COLS,y
+        sta SCREEN+2*COLS,y
         iny
         lda #SC_C
-        sta SCREEN+0*COLS,y
+        sta SCREEN+2*COLS,y
+
+        ; ">" prompt row 7
+        lda #SC_GT
+        sta SCREEN+7*COLS+0
+        rts
+
+;----------------------------------------------
+; Draw screen 3: READY only + cursor
+;----------------------------------------------
+draw_screen3:
+        ldx #$00
+        lda #SC_SP
+@clr:   sta SCREEN,x
+        sta SCREEN+$100,x
+        inx
+        bne @clr
 
         ; "READY." row 5
         ldy #0
@@ -554,7 +598,9 @@ draw_screen2:
         lda #SC_DOT
         sta SCREEN+5*COLS,y
 
-        ; ">" prompt row 7
+        ; ">_" prompt row 7 with cursor
         lda #SC_GT
         sta SCREEN+7*COLS+0
+        lda #$7e
+        sta SCREEN+7*COLS+1
         rts
