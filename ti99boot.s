@@ -78,6 +78,7 @@ SC_DOT  = $2E
 SC_FSLH = $2F
 SC_GT   = $3E
 SC_RP   = $29
+SC_CURS = $1C
 
 ; VIC colors
 C_BLUE   = $06
@@ -147,6 +148,24 @@ start:
         ; Set background color
         lda #$0A
         sta VSCR
+
+        ; Select TI-99/4A charset at $1C00
+        ; Copy font data (1K) to $1C00
+        ldx #$00
+@copy:  lda font_data,x
+        sta $1C00,x
+        lda font_data+$100,x
+        sta $1D00,x
+        lda font_data+$200,x
+        sta $1E00,x
+        lda font_data+$300,x
+        sta $1F00,x
+        inx
+        bne @copy
+
+        ; $9005: bits 7-4 = screen ($1E00), bits 3-0 = charset ($1C00)
+        lda #$FF
+        sta $9005
 
         ; Clear screen
         ldx #$00
@@ -601,6 +620,12 @@ draw_screen3:
         ; ">_" prompt row 7 with cursor
         lda #SC_GT
         sta SCREEN+7*COLS+0
-        lda #$7e
+        lda #SC_CURS
         sta SCREEN+7*COLS+1
         rts
+
+;----------------------------------------------
+; TI-99/4A character set (copied to $1C00 at startup)
+;----------------------------------------------
+font_data:
+        .incbin "ti99font.bin"
