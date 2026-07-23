@@ -42,11 +42,13 @@ VIA2_DDRA = $9123     ; Data Direction Register A
 IRQV    = $0314
 KERNAL_IRQ = $EABF
 
-; Timer value: LINES * CYCLES_PER_LINE - 2
-; PAL 6561-101: 312 lines * 71 cycles/line = 22152 - 2 = 22150
+; Timer values: latch = desired_period - 2
+; PAL 6561-101: 71 cycles per raster line
 LINES        = 312
 CYCLES_LINE  = 71
-TIMER_VAL    = LINES * CYCLES_LINE - 2
+STRIPE_LINES = 8
+FRAME_VAL    = LINES * CYCLES_LINE - 2       ; full frame reference (VIA1)
+STRIPE_VAL   = STRIPE_LINES * CYCLES_LINE - 2 ; one stripe period (VIA2 IRQ)
 
 ; Screen codes
 SC_A    = $01
@@ -182,14 +184,21 @@ start:
         jsr sync
 
         ; Set up VIA timers for stable raster
+        ; VIA1 = free-running reference (full frame period)
+        ; VIA2 = IRQ timer (stripe period = 8 raster lines)
         lda #$40
         sta VIA1_ACR              ; Timer 1 free run
         sta VIA2_ACR
 
-        lda #<TIMER_VAL
-        ldx #>TIMER_VAL
+        lda #<FRAME_VAL
+        ldx #>FRAME_VAL
         sta VIA1_L2
+        stx VIA1_H2              ; store BOTH bytes to latch
+
+        lda #<STRIPE_VAL
+        ldx #>STRIPE_VAL
         sta VIA2_L2
+        stx VIA2_H2              ; store BOTH bytes to latch
 
         ; Delay to position correctly (article: ~77 cycles for PAL)
         ldy #7
@@ -198,10 +207,14 @@ start:
         nop
         nop
 
+        ldx #>STRIPE_VAL
         stx VIA2_T1CH             ; start IRQ timer
+
         ldy #10
         dey
         bne *-1
+
+        ldx #>FRAME_VAL
         stx VIA1_T1CH             ; start reference timer
 
         ; Install IRQ handler
@@ -305,10 +318,10 @@ irq:
         bit $24
         and #$03
 :       cmp #2
-        bcs :+
-        bcs :+
+        bcs *+2
+        bcs *+2
         lsr
-:       ; Now exactly 82 cycles from IRQ start
+        bcs *+2       ; now it has taken 82 cycles from the beginning of the IRQ
         ; Change border/background color per stripe
 
         ldx m                     ; stripe index
