@@ -82,42 +82,31 @@ SC_GT   = $3E
 SC_RP   = $29
 SC_CURS = $1C
 
-; VIC colors
-C_BLUE   = $06
-C_LBLUE  = $0D
-C_CYAN   = $03
-C_GREEN  = $05
-C_LGREEN = $0C
-C_YELLOW = $07
-C_ORANGE = $08
-C_RED    = $02
-C_LRED   = $09
-C_PURPLE = $04
-
 STRIPE_BASE   = 50
 STRIPE_HEIGHT = 8
-NUM_STRIPES   = 25
+NUM_STRIPES   = 39
 
 ; Zero page temp
 m = $FB
 
-; Stripe color table
+; VIC colors ($900F register format: (bg_color << 4) | 8 | (border_color & 7))
+C_CYAN   = $3B
+C_RED    = $2A
+C_LRED   = $99
+C_ORANGE = $88
+C_YELLOW = $7F
+C_GREEN  = $5D
+C_LGREEN = $CE
+C_LCYAN  = $AB
+C_LBLUE  = $DE
+C_BLUE   = $6E
+C_PURPLE = $4C
+
+; Stripe color table (39 stripes total = 312 lines / 8)
 stripe_colors:
-        .byte C_BLUE,C_BLUE
-        .byte C_LBLUE,C_LBLUE
-        .byte C_CYAN,C_CYAN
-        .byte C_LGREEN,C_LGREEN
-        .byte C_GREEN,C_GREEN
-        .byte C_YELLOW,C_YELLOW
-        .byte C_ORANGE,C_ORANGE
-        .byte C_RED,C_RED
-        .byte C_LRED,C_LRED
-        .byte C_PURPLE,C_PURPLE
-        .byte C_LBLUE
-        .byte C_CYAN
-        .byte C_GREEN
-        .byte C_YELLOW
-        .byte C_ORANGE
+        .byte C_RED, C_LRED, C_ORANGE, C_YELLOW, C_GREEN, C_LGREEN, C_LCYAN, C_CYAN, C_LBLUE, C_BLUE, C_PURPLE
+        .byte C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN, C_CYAN
+        .byte C_PURPLE, C_BLUE, C_LBLUE, C_CYAN, C_LCYAN, C_LGREEN, C_GREEN, C_YELLOW, C_ORANGE, C_LRED, C_RED
 
 .exportzp __LOADADDR__: absolute = 1
 .exportzp __EXEHDR__: absolute = 1
@@ -147,9 +136,13 @@ start:
         sta VIA2_IFR
         sta VIA1_IER             ; disable NMIs (Restore key)
 
-        ; Set background color
-        lda #$0A
+        ; Set background color (Cyan)
+        lda #$3B
         sta VSCR
+
+        ; Reset stripe index
+        lda #0
+        sta m
 
         ; Select TI-99/4A charset at $1C00
         ; Copy font data (1K) to $1C00
@@ -304,29 +297,17 @@ sync:
 ; Stable raster IRQ handler
 ;----------------------------------------------
 irq:
-        ; ~38-45 cycles of IRQ overhead before we get here
-        lda VIA1_T1L              ; read reference timer
+        bit VIA2_T1L              ; clear VIA2 Timer 1 interrupt flag
+        lda VIA1_T1L              ; read reference timer (VIA1)
 
-        ; Delay to reach exact stable position (article technique)
-        cmp #8
-        bcc :+
-        pha
-        pla
-        and #$07
-:       cmp #4
-        bcc :+
-        bit $24
-        and #$03
-:       cmp #2
-        bcs *+2
-        bcs *+2
-        lsr
-        bcs *+2       ; now it has taken 82 cycles from the beginning of the IRQ
-        ; Change border/background color per stripe
-
+        ; Cycle-exact jitter compensation (0-1 cycle jitter)
+        lsr                       ; shift bit 0 into Carry
+        bcs :+                    ; 3 cycles if Carry=1, 2 cycles if Carry=0
+:
         ldx m                     ; stripe index
         lda stripe_colors,x
         sta VSCR
+
         inx
         cpx #NUM_STRIPES
         bne :+
