@@ -297,7 +297,7 @@ sync:
 ; Stable raster IRQ handler
 ;----------------------------------------------
 irq:
-        lda VIA2_T1L              ; clear VIA2 Timer 1 interrupt flag
+        bit VIA2_T1L              ; clear VIA2 Timer 1 interrupt flag
         lda VIA1_T1L              ; read reference timer (VIA1)
 
         ; Cycle-exact jitter compensation (0-1 cycle jitter)
